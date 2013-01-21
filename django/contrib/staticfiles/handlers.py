@@ -7,12 +7,12 @@ except ImportError:     # Python 2
 
 from django.conf import settings
 from django.core.handlers.base import get_path_info
-from django.core.handlers.wsgi import WSGIHandler
+from django.core.handlers.wsgi import WSGIHandler, UrlPrefixAwareMixin
 
 from django.contrib.staticfiles import utils
 from django.contrib.staticfiles.views import serve
 
-class StaticFilesHandler(WSGIHandler):
+class StaticFilesHandler(UrlPrefixAwareMixin, WSGIHandler):
     """
     WSGI middleware that intercepts calls to the static files directory, as
     defined by the STATIC_URL setting, and serves those files.
@@ -31,7 +31,7 @@ class StaticFilesHandler(WSGIHandler):
 
     def get_base_url(self):
         utils.check_settings()
-        return settings.STATIC_URL
+        return self.fix_path(settings.STATIC_URL)
 
     def _should_handle(self, path):
         """
@@ -53,12 +53,13 @@ class StaticFilesHandler(WSGIHandler):
         """
         Actually serves the request path.
         """
-        return serve(request, self.file_path(request.path), insecure=True)
+        path = self.fix_path(request.path)
+        return serve(request, self.file_path(path), insecure=True)
 
     def get_response(self, request):
         from django.http import Http404
 
-        if self._should_handle(request.path):
+        if self._should_handle(self.fix_path(request.path)):
             try:
                 return self.serve(request)
             except Http404 as e:

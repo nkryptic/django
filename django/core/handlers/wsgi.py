@@ -266,3 +266,61 @@ class WSGIHandler(base.BaseHandler):
             response_headers.append((str('Set-Cookie'), str(c.output(header=''))))
         start_response(force_str(status), response_headers)
         return response
+
+
+class UrlPrefixAwareMixin(object):
+    _url_prefix = None
+    _url_prefix_fetched = False
+    
+    @property
+    def url_prefix(self):
+        """
+        Get the FORCE_SCRIPT_NAME from settings or None
+        """
+        if not self._url_prefix_fetched:
+            from django.conf import settings
+            self._url_prefix = getattr(settings, 'FORCE_SCRIPT_NAME', None)
+            self._url_prefix_fetched = True
+        return self._url_prefix
+
+    def fix_path(self, path):
+        """
+        Strips FORCE_SCRIPT_NAME from the front of the url
+        """
+        if self.url_prefix and path.startswith(self.url_prefix):
+            path = path[len(self.url_prefix):]
+        return path
+    
+    def is_prefixed(self, path):
+        return not(self.url_prefix) or path.startswith(self.url_prefix)
+
+
+class UrlPrefixAwareHandler(UrlPrefixAwareMixin, WSGIHandler):
+    """
+    WSGI middleware that does nothing if FORCE_SCRIPT_NAME is not defined.
+    
+    When FORCE_SCRIPT_NAME is defined:
+      * this middleware will strip it from PATH_INFO in the environ before
+        passing environ to the next handler
+      * requests that do not begin with FORCE_SCRIPT_NAME will receive a
+        400 Bad Request response
+    """
+    def __init__(self, application):
+        self.application = application
+        super(UrlPrefixAwareHandler, self).__init__()
+
+    def get_response(self, request):
+        logger.warning('Bad Request (Prefixed url required when using FORCE_SCRIPT_NAME)',
+            extra={
+                'status_code': 400,
+            }
+        )
+        return http.HttpResponseBadRequest()
+
+    def __call__(self, environ, start_response):
+        if self.url_prefix:
+            path_info = base.get_path_info(environ)
+            if not self.is_prefixed(path_info):
+                return super(UrlPrefixAwareHandler, self).__call__(environ, start_response)
+            environ['PATH_INFO'] = self.fix_path(path_info)
+        return self.application(environ, start_response)

@@ -144,6 +144,70 @@ class LiveServerViews(LiveServerBase):
         self.assertIn(b"QUERY_STRING: 'q=%D1%82%D0%B5%D1%81%D1%82'", f.read())
 
 
+class LiveServerUrlPrefixedViews(LiveServerBase):
+    
+    @classmethod
+    def setUpClass(cls):
+        # Override settings
+        newsettings = {}
+        newsettings.update(TEST_SETTINGS)
+        newsettings.update({
+            'FORCE_SCRIPT_NAME': '/live-example',
+            'MEDIA_URL': '/live-example/media/',
+            'STATIC_URL': '/live-example/static/',
+        })
+        cls.settings_override = override_settings(**newsettings)
+        cls.settings_override.enable()
+        super(LiveServerBase, cls).setUpClass()
+
+    def test_bad_request(self):
+        """
+        Ensure that the LiveServerTestCase serves 400s.
+        """
+        try:
+            self.urlopen('/')
+        except HTTPError as err:
+            self.assertEqual(err.code, 400, 'Expected 400 response')
+        else:
+            self.fail('Expected 400 response')
+    
+    def test_404(self):
+        """
+        Ensure that the LiveServerTestCase serves 404s.
+        Refs #2879.
+        """
+        try:
+            self.urlopen('/live-example/')
+        except HTTPError as err:
+            self.assertEqual(err.code, 404, 'Expected 404 response')
+        else:
+            self.fail('Expected 404 response')
+
+    def test_view(self):
+        """
+        Ensure that the LiveServerTestCase serves views.
+        Refs #2879.
+        """
+        f = self.urlopen('/live-example/example_view/')
+        self.assertEqual(f.read(), b'example view')
+
+    def test_static_files(self):
+        """
+        Ensure that the LiveServerTestCase serves static files.
+        Refs #2879.
+        """
+        f = self.urlopen('/live-example/static/example_static_file.txt')
+        self.assertEqual(f.read().rstrip(b'\r\n'), b'example static file')
+
+    def test_media_files(self):
+        """
+        Ensure that the LiveServerTestCase serves media files.
+        Refs #2879.
+        """
+        f = self.urlopen('/live-example/media/example_media_file.txt')
+        self.assertEqual(f.read().rstrip(b'\r\n'), b'example media file')
+
+
 class LiveServerDatabase(LiveServerBase):
 
     def test_fixtures_loaded(self):

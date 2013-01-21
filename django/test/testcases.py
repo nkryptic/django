@@ -17,6 +17,7 @@ import threading
 import errno
 
 from django.conf import settings
+from django.core.handlers.wsgi import UrlPrefixAwareHandler
 from django.contrib.staticfiles.handlers import StaticFilesHandler
 from django.core import mail
 from django.core.exceptions import ValidationError, ImproperlyConfigured
@@ -1014,10 +1015,11 @@ class _MediaFilesHandler(StaticFilesHandler):
         return settings.MEDIA_ROOT
 
     def get_base_url(self):
-        return settings.MEDIA_URL
+        return self.fix_path(settings.MEDIA_URL)
 
     def serve(self, request):
-        relative_url = request.path[len(self.base_url[2]):]
+        path = self.fix_path(request.path)
+        relative_url = path[len(self.base_url[2]):]
         return serve(request, relative_url, document_root=self.get_base_dir())
 
 
@@ -1049,6 +1051,7 @@ class LiveServerThread(threading.Thread):
         try:
             # Create the handler for serving static and media files
             handler = StaticFilesHandler(_MediaFilesHandler(WSGIHandler()))
+            handler = UrlPrefixAwareHandler(handler)
 
             # Go through the list of possible ports, hoping that we can find
             # one that is free to use for the WSGI server.

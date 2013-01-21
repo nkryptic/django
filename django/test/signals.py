@@ -79,3 +79,9 @@ def file_storage_changed(**kwargs):
     if kwargs['setting'] in ('MEDIA_ROOT', 'DEFAULT_FILE_STORAGE'):
         from django.core.files.storage import default_storage
         default_storage._wrapped = empty
+
+@receiver(setting_changed)
+def fix_script_prefix(**kwargs):
+    if kwargs['setting'] == 'FORCE_SCRIPT_NAME':
+        from django.core.urlresolvers import set_script_prefix
+        set_script_prefix('/')

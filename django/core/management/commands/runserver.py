@@ -7,6 +7,7 @@ import socket
 
 from django.core.management.base import BaseCommand, CommandError
 from django.core.servers.basehttp import run, WSGIServerException, get_internal_wsgi_application
+from django.core.handlers.wsgi import UrlPrefixAwareHandler
 from django.utils import autoreload
 
 naiveip_re = re.compile(r"""^(?:
@@ -110,6 +111,7 @@ class Command(BaseCommand):
 
         try:
             handler = self.get_handler(*args, **options)
+            handler = UrlPrefixAwareHandler(handler)
             run(self.addr, int(self.port), handler,
                 ipv6=self.use_ipv6, threading=threading)
         except WSGIServerException as e:

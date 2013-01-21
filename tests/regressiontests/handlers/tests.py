@@ -1,4 +1,4 @@
-from django.core.handlers.wsgi import WSGIHandler
+from django.core.handlers.wsgi import WSGIHandler, UrlPrefixAwareHandler
 from django.core import signals
 from django.test import RequestFactory, TestCase
 from django.test.utils import override_settings
@@ -58,3 +58,20 @@ class SignalsTests(TestCase):
         self.assertEqual(self.signals, ['started'])
         self.assertEqual(b''.join(response.streaming_content), b"streaming content")
         self.assertEqual(self.signals, ['started', 'finished'])
+
+
+@override_settings(FORCE_SCRIPT_NAME='/prefixed-example')
+class PrefixedHandlerTests(TestCase):
+    urls = 'regressiontests.handlers.urls'
+
+    def test_unprefixed_path(self):
+        environ = RequestFactory().get('/regular/').environ
+        handler = UrlPrefixAwareHandler(WSGIHandler())
+        response = handler(environ, lambda *a, **k: None)
+        self.assertEqual(response.status_code, 400)
+
+    def test_prefix_path(self):
+        environ = RequestFactory().get('/prefixed-example/regular/').environ
+        handler = UrlPrefixAwareHandler(WSGIHandler())
+        response = handler(environ, lambda *a, **k: None)
+        self.assertEqual(response.content, b"regular content")
